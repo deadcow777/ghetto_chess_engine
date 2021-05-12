@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "kube1-2e03"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "kube1-2e03"
+  template:
+    metadata:
+      labels:
+        app: "kube1-2e03"
+    spec:
+      containers:
+        - name: "kube1-2e03"
+          image: "chess.azurecr.io/kube1"
+          ports:
+          - containerPort: 8080

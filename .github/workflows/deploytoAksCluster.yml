@@ -1,0 +1,51 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: chess.azurecr.io
+        username: ${{ secrets.acr_chess_username }}
+        password: ${{ secrets.acr_chess_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/" -f  "Dockerfile" -t chess.azurecr.io/kube1:${{ github.sha }} --label dockerfile-path=Dockerfile
+        docker push chess.azurecr.io/kube1:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_kube1_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep kube1b769 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace kube1b769`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: kube1b769
+        container-registry-url: chess.azurecr.io
+        container-registry-username: ${{ secrets.acr_chess_username }}
+        container-registry-password: ${{ secrets.acr_chess_password }}
+        secret-name: kube1dockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: kube1b769
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+          manifests/ingress.yml
+        images: |
+          chess.azurecr.io/kube1:${{ github.sha }}
+        imagepullsecrets: |
+          kube1dockerauth
